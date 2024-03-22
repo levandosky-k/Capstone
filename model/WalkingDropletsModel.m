@@ -2,11 +2,17 @@ clear
 close all
 
 makeplot=1;
-makevid=1;
+makevid=0;
 overlay=0;
+savefigures=0;
+
+savelocation='./Plots_and_Videos/TwoDroplets';
+setnum=7;
+
+MAX_LENGTH=1000;
 
 m=0.1; %mass
-D=1; %drag coefficient
+D=0.01; %drag coefficient
 g=10;
 omega=1;
 A0=1;
@@ -16,8 +22,8 @@ b=5; %damping (1)
 
 dt=0.1; %time step
 t0=0; %initial time
-Nt=500; %number of timesteps after initial time t0 (total = Nt+1)
-Ntt=10; %number of interior points to evaluate in ode45
+Nt=10; %number of timesteps after initial time t0 (total = Nt+1)
+Ntt=100; %number of interior points to evaluate in ode45
 tmax=(Nt)*dt+t0; %end time
 tvals=t0:dt:tmax; %time values
 ttvals=t0:dt/Ntt:tmax; %time values including interior points
@@ -29,29 +35,38 @@ xmin=x0-Nx*dx; %leftmost
 xmax=x0+Nx*dx; %rightmost
 xvals=xmin:dx:xmax; %all space values
 
-bouncedt=0.1; %time between bounces
-numdrops=floor(tmax/bouncedt)+1; %number of times droplet hits surface
-% droptimes=t0:bouncedt:tmax; %times when drop occurs
-droptimes=zeros(1,numdrops);
-dropxposns=zeros(1,numdrops); %x positions where drop occurs
-dropzposns=zeros(1,numdrops); %z positions where drop occurs
-dropcount=0; %drops so far
+droptimes1=zeros(1,MAX_LENGTH); %times when drop occurs
+dropxposns1=zeros(1,MAX_LENGTH); %x positions where drop occurs
+dropzposns1=zeros(1,MAX_LENGTH); %z positions where drop occurs
+dropcount1=0; %drops so far
+
+droptimes2=zeros(1,MAX_LENGTH); %times when drop occurs
+dropxposns2=zeros(1,MAX_LENGTH); %x positions where drop occurs
+dropzposns2=zeros(1,MAX_LENGTH); %z positions where drop occurs
+dropcount2=0; %drops so far
 
 H = zeros(length(tvals),length(xvals)); % wave field: H(t,x)=height of wave at time t and horizontal position x 
 gradH = zeros(length(tvals),length(xvals)); % gradient of wave field
-full_xtrajectory = zeros(1,(Nt)*Ntt+1);
-full_xvelocities = zeros(1,(Nt)*Ntt+1);
-full_ztrajectory = zeros(1,(Nt)*Ntt+1);
-full_zvelocities = zeros(1,(Nt)*Ntt+1);
+full_xtrajectory1 = zeros(1,(Nt)*Ntt+1);
+full_xvelocities1 = zeros(1,(Nt)*Ntt+1);
+full_ztrajectory1 = zeros(1,(Nt)*Ntt+1);
+full_zvelocities1 = zeros(1,(Nt)*Ntt+1);
+full_xtrajectory2 = zeros(1,(Nt)*Ntt+1);
+full_xvelocities2 = zeros(1,(Nt)*Ntt+1);
+full_ztrajectory2 = zeros(1,(Nt)*Ntt+1);
+full_zvelocities2 = zeros(1,(Nt)*Ntt+1);
 
 % wave created by one drop:
-h = @(x0,x,t) besselj(0,omega*abs(x-x0)) * exp(-t); %x0=point of contact
+h = @(x0,xmin,xmax,x,t) (besselj(0,omega*abs(x-x0)) ...
+    + besselj(0,omega*abs(x-x0+(xmax-xmin))) ...
+    + besselj(0,omega*abs(x-x0-(xmax-xmin)))) * exp(-t); %x0=point of contact
+
 
 zbar = @(z,H) z-H;
 
 
 if makevid==1
-    vidObj = VideoWriter('./Plots_and_Videos/WaveVideo9.mp4','MPEG-4');
+    vidObj = VideoWriter(strcat(savelocation,'_Vid',int2str(setnum),'.mp4'),'MPEG-4');
     vidObj.FrameRate = 10;
     vidObj.Quality = 100;
     open(vidObj)
@@ -66,102 +81,193 @@ end
 % dropposns(1)=x0;
 
 %initialize x,xprime
-x=x0;
-xprime=0;
+x1=-1;
+xprime1=0;
+x2=2;
+xprime2=0;
 
 %initialize z,zprime
-z=0.5;
-zprime=0;
-
-hit=0;
+z1=0.4;
+zprime1=0;
+z2=0.6;
+zprime2=0;
 
 % loop through iterations of time
 for i=1:Nt+1
     t=tvals(i);
 
-    %check if drop occurs
-    % if dropcount<numdrops && t==droptimes(dropcount+1)
-    %     dropposns(dropcount+1)=x;
-    %     dropcount=dropcount+1;
-    % end
-
     % calculate wave field
-    for j=1:dropcount
+    for j=1:dropcount1
         % wave field at time tvals(i)=t
-        H(i,:) = H(i,:) + h(dropxposns(j),xvals,t-droptimes(j));
+        H(i,:) = H(i,:) + h(dropxposns1(j),xmin,xmax,xvals,t-droptimes1(j));
+    end
+    for j=1:dropcount2
+        H(i,:) = H(i,:) + h(dropxposns2(j),xmin,xmax,xvals,t-droptimes2(j));
     end
 
     % gradient of wave field
     gradH(i,:) = gradient(H(i,:));
 
+    % time derivative of wave field up until this time
+    Hprime = (gradient((H(1:i,:))'))';
+
+    % make sure droplet doesn't pass walls
+    if x1>=xmax && xprime1>0
+        x1=xmax;
+        xprime1=-xprime1;
+    elseif x1<=xmin && xprime1<0
+        x1=xmin;
+        xprime1=-xprime1;
+    end
+    if x2>=xmax && xprime2>0
+        x2=xmax;
+        xprime2=-xprime2;
+    elseif x2<=xmin && xprime2<0
+        x2=xmin;
+        xprime2=-xprime2;
+    end
+
     % solve for horizontal trajectory of drop between this timestep (t) and
     % next timestep (t+dt)
     if i<Nt+1
-        r=2*rand(1,2)-1;
-        x=x+r(1)*0.01;
-        xprime=xprime+r(2)*0.01;
-        x_ind = find(abs(xvals-x)<=dx/2,1);
-        tspan=t:dt/Ntt:t+dt;
-        x_init=[x; xprime];
-        [tnew,xnew] = ode45(@(tt,xx) horizontal_trajectory(tt,xx,gradH(i,x_ind),m,g,D),tspan,x_init);
-        % tnew: Ntt+1 by 1; xnew: Ntt+1 by 2
+        if dropcount1>=1
+            %droplet 1
+            % r=2*rand(1,2)-1;
+            % x1=x1+r(1)*0.01;
+            % xprime1=xprime1+r(2)*0.01;
+            lastdroppos1 = dropxposns1(dropcount1);
+            x_ind1 = find(abs(xvals-lastdroppos1)<=dx/2+0.001,1);
+            tspan1=t:dt/Ntt:t+dt;
+            x_init1=[x1; xprime1];
+            [tnew1,xnew1] = ode45(@(tt,xx) horizontal_trajectory(tt,xx,gradH(i,x_ind1),m,g,D),tspan1,x_init1);
+            % tnew: Ntt+1 by 1; xnew: Ntt+1 by 2
 
-        full_xtrajectory((i-1)*Ntt+1:i*Ntt) = xnew(1:Ntt,1);
-        full_xvelocities((i-1)*Ntt+1:i*Ntt) = xnew(1:Ntt,2);
+            full_xtrajectory1((i-1)*Ntt+1:i*Ntt) = xnew1(1:Ntt,1);
+            full_xvelocities1((i-1)*Ntt+1:i*Ntt) = xnew1(1:Ntt,2);
+
+            %set new x and xprime for next timestep (t+dt)
+            nextx1=xnew1(end,1);
+            nextxprime1=xnew1(end,2);
+            
+        else
+            if xprime1==0
+                full_xtrajectory1((i-1)*Ntt+1:i*Ntt) = x1;
+                full_xvelocities1((i-1)*Ntt+1:i*Ntt) = xprime1;
+            else
+                full_xtrajectory1((i-1)*Ntt+1:i*Ntt) = (x1+xprime1*dt/Ntt):(xprime1*dt/Ntt):(x1+xprime1*dt);
+                full_xvelocities1((i-1)*Ntt+1:i*Ntt) = xprime1*ones(Ntt,1);
+            end
+
+            nextx1=x1+xprime1*dt;
+            nextxprime1=xprime1;
+        end
+        if dropcount2>=1
+            %droplet 2
+            % r=2*rand(1,2)-1;
+            % x2=x2+r(1)*0.01;
+            % xprime2=xprime2+r(2)*0.01;
+            lastdroppos2 = dropxposns2(dropcount2);
+            x_ind2 = find(abs(xvals-lastdroppos2)<=dx/2+0.001,1);
+            tspan2=t:dt/Ntt:t+dt;
+            x_init2=[x2; xprime2];
+            [tnew2,xnew2] = ode45(@(tt,xx) horizontal_trajectory(tt,xx,gradH(i,x_ind2),m,g,D),tspan2,x_init2);
+
+            full_xtrajectory2((i-1)*Ntt+1:i*Ntt) = xnew2(1:Ntt,1);
+            full_xvelocities2((i-1)*Ntt+1:i*Ntt) = xnew2(1:Ntt,2);
+
+            nextx2=xnew2(end,1);
+            nextxprime2=xnew2(end,2);
+        else
+            if xprime2==0
+                full_xtrajectory2((i-1)*Ntt+1:i*Ntt) = x2;
+                full_xvelocities2((i-1)*Ntt+1:i*Ntt) = xprime2;
+            else
+                full_xtrajectory2((i-1)*Ntt+1:i*Ntt) = (x2+xprime2*dt/Ntt):(xprime2*dt/Ntt):(x2+xprime2*dt);
+                full_xvelocities2((i-1)*Ntt+1:i*Ntt) = xprime2*ones(Ntt,1);
+            end
+
+            nextx2=x2+xprime2*dt;
+            nextxprime2=xprime2;
+        end
+    
+    
     else
-        full_xtrajectory(end) = xnew(end,1);
-        full_xvelocities(end) = xnew(end,2);
+        full_xtrajectory1(end) = x1;
+        full_xvelocities1(end) = xprime1;
+        full_xtrajectory2(end) = x2;
+        full_xvelocities2(end) = xprime2;
+
+        nextx1=x1;
+        nextxprime1=xprime1;
+        nextx2=x2;
+        nextxprime2=xprime2;
     end
 
-    %set new x and xprime for next timestep (t+dt)
-    x=xnew(end,1);
-    xprime=xnew(end,2);
+    
 
     % solve for vertical trajectory of drop between this timestep (t) and
     % next timestep (t+dt)
     if i<Nt+1
-        x_ind = find(abs(xvals-x)<=dx/2,1);
-        tspan=t:dt/Ntt:t+dt;
-        zb = zbar(z,H(i,x_ind));
-        z_init = [z; zprime; zb];
-        Hprime = (gradient((H(1:i,:))'))';
-        [tnew,znew] = ode45(@(tt,zz) vertical_trajectory(tt,zz,Hprime(i,x_ind),m,g,gamma,k,b),tspan,z_init);
+        x_ind1 = find(abs(xvals-x1)<=dx/2+0.001,1);
+        tspan1=t:dt/Ntt:t+dt;
+        zb1 = zbar(z1,H(i,x_ind1));
+        z_init1 = [z1; zprime1; zb1];
+        [tnew1,znew1] = ode45(@(tt,zz) vertical_trajectory(tt,zz,Hprime(i,x_ind1),m,g,gamma,k,b),tspan1,z_init1);
 
-        full_ztrajectory((i-1)*Ntt+1:i*Ntt) = znew(1:Ntt,1);
-        full_zvelocities((i-1)*Ntt+1:i*Ntt) = znew(1:Ntt,2);
+        x_ind2 = find(abs(xvals-x2)<=dx/2+0.001,1);
+        tspan2=t:dt/Ntt:t+dt;
+        zb2 = zbar(z2,H(i,x_ind2));
+        z_init2 = [z2; zprime2; zb2];
+        [tnew2,znew2] = ode45(@(tt,zz) vertical_trajectory(tt,zz,Hprime(i,x_ind2),m,g,gamma,k,b),tspan2,z_init2);
+
+        full_ztrajectory1((i-1)*Ntt+1:i*Ntt) = znew1(1:Ntt,1);
+        full_zvelocities1((i-1)*Ntt+1:i*Ntt) = znew1(1:Ntt,2);
+
+        full_ztrajectory2((i-1)*Ntt+1:i*Ntt) = znew2(1:Ntt,1);
+        full_zvelocities2((i-1)*Ntt+1:i*Ntt) = znew2(1:Ntt,2);
+
+        %set new z and zprime for next timestep (t+dt)
+        nextz1=znew1(end,1);
+        nextzprime1=znew1(end,2);
+        nextz2=znew2(end,1);
+        nextzprime2=znew2(end,2);
     else
-        full_ztrajectory(end) = znew(end,1);
-        full_zvelocities(end) = znew(end,2);
+        full_ztrajectory1(end) = znew1(end,1);
+        full_zvelocities1(end) = znew1(end,2);
+        full_ztrajectory2(end) = znew2(end,1);
+        full_zvelocities2(end) = znew2(end,2);
+
+        nextz1=z1;
+        nextzprime1=zprime1;
+        nextz2=z2;
+        nextzprime2=zprime2;
     end
     
 
     %check if drop occurs
-    if z>=H(i,x_ind) && znew(end,1)<=H(i,x_ind)
-        % hit=1;
-        dropxposns(dropcount+1)=x;
-        dropzposns(dropcount+1)=z;
-        droptimes(dropcount+1)=t;
-        dropcount=dropcount+1;
+    if z1>=H(i,x_ind1) && nextz1<=H(i,x_ind1)
+        dropxposns1(dropcount1+1)=x1;
+        dropzposns1(dropcount1+1)=z1;
+        droptimes1(dropcount1+1)=t;
+        dropcount1=dropcount1+1;
+    end
+    if z2>=H(i,x_ind2) && nextz2<=H(i,x_ind2)
+        dropxposns2(dropcount2+1)=x2;
+        dropzposns2(dropcount2+1)=z2;
+        droptimes2(dropcount2+1)=t;
+        dropcount2=dropcount2+1;
     end
 
-    % if hit==1 && z>=0.2
-    %     dropxposns(dropcount+1)=x;
-    %     dropzposns(dropcount+1)=z;
-    %     droptimes(dropcount+1)=t;
-    %     dropcount=dropcount+1;
-    %     hit=0;
-    % end
-
-
-    %set new z and zprime for next timestep (t+dt)
-    z=znew(end,1);
-    zprime=znew(end,2);
-
-    % calculate wave field
-    % for j=1:dropcount
-    %     % wave field at time tvals(i)=t
-    %     H(i,:) = H(i,:) + h(dropxposns(j),xvals,t-droptimes(j));
-    % end
+    %set new positions and velocities
+    x1=nextx1;
+    xprime1=nextxprime1;
+    z1=nextz1;
+    zprime1=nextzprime1;
+    x2=nextx2;
+    xprime2=nextxprime2;
+    z2=nextz2;
+    zprime2=nextzprime2;
+    
 
     % plot wave
     if makeplot==1 || makevid==1
@@ -172,15 +278,14 @@ for i=1:Nt+1
         hold on
         plot(xvals,H(i,:),'blue','LineWidth',2)
         plot(xvals,gradH(i,:),'red','LineWidth',2)
-        scatter(dropxposns(1:dropcount),dropzposns(1:dropcount),'black','filled')
-        scatter(x,z,'blue','filled')
+        scatter([x1,x2],[z1,z2],'blue','filled')
         hold off
         xlabel('horizontal position')
         ylabel('height of wave')
         title('Wave Field')
         xlim([xmin,xmax])
         ylim([-1,2])
-        legend('x=0','wave field','gradient','contact point','drop')
+        legend('x=0','wave field','gradient','droplets')
         if makevid==1
             frame = getframe(wave);
             writeVideo(vidObj,frame);
@@ -189,48 +294,58 @@ for i=1:Nt+1
 end
 
 % plot final wave field
-% if makeplot==1
-%     plot(xvals,0*xvals,'black','Linewidth',1)
-%     hold on
-%     plot(xvals,H(end,:),'blue','LineWidth',2)
-%     plot(xvals,gradH(end,:),'red','LineWidth',2)
-%     scatter(dropxposns(1:dropcount),dropzposns(1:dropcount),'black','filled')
-%     hold off
-%     xlabel('horizontal position')
-%     ylabel('height of wave')
-%     title('Wave Field')
-%     xlim([xmin,xmax])
-%     ylim([-1,2])
-%     legend('x=0','wave field','gradient','contact point')
-% end
+if makeplot==1
+    plot(xvals,0*xvals,'black','Linewidth',1)
+        hold on
+        plot(xvals,H(end,:),'blue','LineWidth',2)
+        plot(xvals,gradH(end,:),'red','LineWidth',2)
+        scatter([x1,x2],[z1,z2],'blue','filled')
+        hold off
+        xlabel('horizontal position')
+        ylabel('height of wave')
+        title('Wave Field')
+        xlim([xmin,xmax])
+        ylim([-1,2])
+        legend('x=0','wave field','gradient','droplets')
+end
 
 % plot full horizontal trajectory
 if makeplot==1
-    figure(2)
+    horizontal=figure(2);
     clf
     hold on
-    plot(ttvals,full_xtrajectory,'black','LineWidth',2)
-    plot(ttvals,full_xvelocities,'red','LineWidth',2)
+    plot(ttvals,full_xtrajectory1,'black','LineWidth',2)
+    plot(ttvals,full_xvelocities1,'red','LineWidth',2)
+    plot(ttvals,full_xtrajectory2,'black','LineWidth',2,'LineStyle','--')
+    plot(ttvals,full_xvelocities2,'red','LineWidth',2,'LineStyle','--')
     hold off
     xlabel('time')
     title('Horizontal Trajectory')
-    legend(['position';'velocity'])
+    legend('droplet 1 position','droplet 1 velocity','droplet 2 position','droplet 2 velocity')
     ylabel('horizontal position of droplet')
+    if savefigures==1
+        savefig(horizontal,strcat(savelocation,'_Horizontal',int2str(setnum),'.fig'))
+    end
 end
 
 % plot full vertical trajectory
 if makeplot==1
-    figure(3)
+    vertical=figure(3);
     clf
     hold on
     plot(ttvals,0*ttvals,'black','Linewidth',1)
-    plot(ttvals,full_ztrajectory,'black','LineWidth',2)
-    plot(ttvals,full_zvelocities,'red','LineWidth',2)
+    plot(ttvals,full_ztrajectory1,'black','LineWidth',2)
+    plot(ttvals,full_zvelocities1,'red','LineWidth',2)
+    plot(ttvals,full_ztrajectory2,'black','LineWidth',2,'LineStyle', '--')
+    plot(ttvals,full_zvelocities2,'red','LineWidth',2,'LineStyle', '--')
     hold off
     xlabel('time')
     title('Vertical Trajectory')
-    legend('x=0','vertical position','vertical velocity')
+    legend('x=0','droplet 1 position','droplet 1 velocity','droplet 2 position','droplet 2 velocity')
     ylabel('vertical position of droplet')
+    if savefigures==1
+        savefig(vertical,strcat(savelocation,'_Vertical',int2str(setnum),'.fig'))
+    end
 end
 
 if makevid==1
@@ -239,7 +354,7 @@ end
 
 function dxdt = horizontal_trajectory(~,xx,gradH,m,g,D)
 r=2*rand(1,1)-1; %random number in [-1,1]
-dxdt = [xx(2); -g*(gradH+r*0.1) - D*xx(2)*(1/m)];
+dxdt = [xx(2); -g*(gradH) - D*xx(2)*(1/m)];
 end
 
 
