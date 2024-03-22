@@ -6,8 +6,8 @@ makevid=1;
 overlay=0;
 savefigures=1;
 
-savelocation='./Plots_and_Videos/2D/InitialXVelocity';
-setnum=3;
+savelocation='./Plots_and_Videos/2D/InitialXYVelocity';
+setnum=1;
 
 MAX_LENGTH=1000;
 
@@ -22,21 +22,21 @@ b=0.1; %damping (1)
 
 dt=0.1; %time step
 t0=0; %initial time
-Nt=100; %number of timesteps after initial time t0 (total = Nt+1)
+Nt=300; %number of timesteps after initial time t0 (total = Nt+1)
 Ntt=100; %number of interior points to evaluate in ode45
 tmax=(Nt)*dt+t0; %end time
 tvals=t0:dt:tmax; %time values
 ttvals=t0:dt/Ntt:tmax; %time values including interior points
 
 dx=0.1; %x step
-x0=0; %center and starting point
+x0=0; %center
 Nx=100; %number of space steps left and right (total = 2Nx+1)
 xmin=x0-Nx*dx; %leftmost
 xmax=x0+Nx*dx; %rightmost
 xvals=xmin:dx:xmax; %all x values
 
 dy=0.1; %y step
-y0=0; %center and starting point
+y0=0; %center
 Ny=100; %number of y steps up and down (total = 2Ny+1)
 ymin=y0-Ny*dy; %lowest
 ymax=y0+Ny*dy; %highest
@@ -85,7 +85,7 @@ end
 x=0;
 xprime=1;
 y=0;
-yprime=0;
+yprime=2;
 
 %initialize z,zprime
 z=0.7;
@@ -136,6 +136,7 @@ for i=1:Nt+1
         y=ymin;
         yprime=-yprime;
     end
+
 
     % solve for horizontal trajectory of drop between this timestep (t) and
     % next timestep (t+dt)
@@ -349,20 +350,30 @@ if makeplot==1
         savefig(yfig,strcat(savelocation,'_Y',int2str(setnum),'.fig'))
     end
 end
-% plot full horizontal trajectory
+% plot full horizontal trajectory with speed as color
 if makeplot==1
     horizontal=figure(4);
     clf
     hold on
+    % surface([full_xtrajectory;full_xtrajectory],[full_ytrajectory;full_ytrajectory],...
+    %     [zeros(size(full_xtrajectory));zeros(size(full_xtrajectory))],[ttvals;ttvals],...
+    %     'facecol','no',...
+    %     'edgecol','interp',...
+    %     'linew',2);
+    speedvals=sqrt(full_xvelocities.^2+full_yvelocities.^2);
     surface([full_xtrajectory;full_xtrajectory],[full_ytrajectory;full_ytrajectory],...
-        [zeros(size(full_xtrajectory));zeros(size(full_xtrajectory))],[ttvals;ttvals],...
+        [zeros(size(full_xtrajectory));zeros(size(full_xtrajectory))],[speedvals;speedvals],...
         'facecol','no',...
         'edgecol','interp',...
         'linew',2);
-    colormap('autumn')
+    colormap('cool')
     cb=colorbar;
-    cb.Label.String = 'time';
-    clim([ttvals(1),ttvals(end)])
+    % cb.Label.String = 'time';
+    % clim([ttvals(1),ttvals(end)])
+    cb.Label.String = 'speed';
+    clim([min(speedvals),max(speedvals)])
+    % xlim([xmin, xmax])
+    % ylim([ymin, ymax])
     scatter3(full_xtrajectory(1,1),full_ytrajectory(1,1),0,100,'black','filled')
     scatter3(full_xtrajectory(1,end),full_ytrajectory(1,end),0,100,'black','filled','square')
     % plot(full_xtrajectory,full_ytrajectory,'MarkerFaceColor',(ttvals/max(ttvals))'*[1,0,0]+(1-ttvals/max(ttvals))'*[0,0,1],'LineWidth',2)
@@ -380,7 +391,7 @@ end
 
 % plot full vertical trajectory
 if makeplot==1
-    figure(5)
+    vertical=figure(5);
     clf
     hold on
     plot(ttvals,0*ttvals,'black','Linewidth',1)
@@ -391,6 +402,9 @@ if makeplot==1
     title('Vertical Trajectory')
     legend('x=0','vertical position','vertical velocity')
     ylabel('vertical position of droplet')
+    if savefigures==1
+        savefig(vertical,strcat(savelocation,'_Vertical',int2str(setnum),'.fig'))
+    end
 end
 
 if makevid==1

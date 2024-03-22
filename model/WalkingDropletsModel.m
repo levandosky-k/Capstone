@@ -6,10 +6,10 @@ makevid=1;
 overlay=0;
 savefigures=1;
 
-savelocation='./Plots_and_Videos/InitialXVelocity';
-setnum=2;
+savelocation='./Plots_and_Videos/TwoDroplets';
+setnum=8;
 
-twodroplets=0;
+twodroplets=1;
 
 MAX_LENGTH=1000;
 
@@ -24,7 +24,7 @@ b=5; %damping (1)
 
 dt=0.1; %time step
 t0=0; %initial time
-Nt=300; %number of timesteps after initial time t0 (total = Nt+1)
+Nt=100; %number of timesteps after initial time t0 (total = Nt+1)
 Ntt=100; %number of interior points to evaluate in ode45
 tmax=(Nt)*dt+t0; %end time
 tvals=t0:dt:tmax; %time values
@@ -83,13 +83,13 @@ end
 % dropposns(1)=x0;
 
 %initialize x,xprime
-x1=0;
-xprime1=2;
-x2=2;
+x1=-10;
+xprime1=0;
+x2=10;
 xprime2=0;
 
 %initialize z,zprime
-z1=0.5;
+z1=0.4;
 zprime1=0;
 z2=0.6;
 zprime2=0;
