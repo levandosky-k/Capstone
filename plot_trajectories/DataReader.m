@@ -1,21 +1,23 @@
 clear
 close all
 
+set(0,'DefaultFigureVisible','on')
+
 trajectory_plot=0;
 speed_plot=1;
 show_startend=1;
 
-path='full_tracks.csv'; %13 drops
+path='full_tracks.csv'; %13 droplets
 
 Mtable=readtable(path);
 M=readmatrix(path);
 
-if strcmp(path,path2)
-    times=M(:,2);
-end
+% if strcmp(path,path2)
+%     times=M(:,2);
+% end
 
 num_timesteps=7000; % max length(M)
-num_droplets=2;
+num_droplets=7;
 stepsize=1; %1 = don't skip any timesteps
 
 red=[1,0,0];
@@ -66,26 +68,36 @@ snorm=s./(max(s)); % number of timesteps by number of droplets
 figure(2)
 clf
 hold on;
+xshift=195;
+yshift=195;
+count_droplets=0;
+th=0:pi/50:2*pi;
+plot(15*cos(th),15*sin(th),'black')
 for i=1:2:2*num_droplets % each droplet
     if max(x(1:stepsize:num_timesteps,i))<400 && min(x(1:stepsize:num_timesteps,i))>50
-    scolors=snorm(1:stepsize:num_timesteps,(i+1)/2)*red+(1-snorm(1:stepsize:num_timesteps,(i+1)/2))*blue;
-    alphas=snorm;
-    alphas(alphas<0.5)=alphas(alphas<0.5)/5;
-    s=scatter(x(1:stepsize:num_timesteps,i),x(1:stepsize:num_timesteps,i+1),[],scolors,'filled','AlphaData',alphas(:,(i+1)/2));
-    % s=scatter(x(1:stepsize:num_timesteps,i),x(1:stepsize:num_timesteps,i+1),[],scolors,'filled');
-    s.MarkerFaceAlpha='flat';
-    xlabel('x position')
-    ylabel('y position')
-    colormap(flip(redtoblue))
-    c = colorbar;
-    c.Label.String = 'Normalized Speed';
-    title('Trajectory and Speed of Droplet')
-    if show_startend==1
-    scatter(x(1,i),x(1,i+1),100,'black', 'filled')
-    scatter(x(num_timesteps,i),x(num_timesteps,i+1),100,'black', 'filled', 'square')
-    legend('','start', 'end')
-    end
+        count_droplets=count_droplets+1;
+        scolors=snorm(1:stepsize:num_timesteps,(i+1)/2)*red+(1-snorm(1:stepsize:num_timesteps,(i+1)/2))*blue;
+        alphas=snorm;
+        alphas(alphas<0.5)=alphas(alphas<0.5)/5;
+        s=scatter((x(1:stepsize:num_timesteps,i)-xshift)*0.1,(x(1:stepsize:num_timesteps,i+1)-yshift)*0.1,[],scolors,'filled','AlphaData',alphas(:,(i+1)/2));
+        % s=scatter(x(1:stepsize:num_timesteps,i),x(1:stepsize:num_timesteps,i+1),[],scolors,'filled');
+        s.MarkerFaceAlpha='flat';
+        xlabel('x')
+        ylabel('y')
+        colormap(flip(redtoblue))
+        c = colorbar;
+        c.Label.String = 'Normalized Speed';
+        title('Actual Trajectories')
+        if show_startend==1
+            scatter((x(1,i)-xshift)*0.1,(x(1,i+1)-yshift)*0.1,100,'black', 'filled')
+            scatter((x(num_timesteps,i)-xshift)*0.1,(x(num_timesteps,i+1)-yshift)*0.1,100,'black', 'filled', 'square')
+            legend('','','start', 'end')
+        end
+        xlim([-15,15])
+        ylim([-15,15])
+        % initial_positions(count_droplets,:)=[x(1,i),x(1,i+1)];
     end
 end
+set(gcf,'color','white')
 hold off;
 end
